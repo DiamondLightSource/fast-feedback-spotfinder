@@ -47,6 +47,13 @@ SHMRead::SHMRead(const std::string &path) : _base_path(path) {
     _beam_center = {data["beam_center_y"].template get<float>(),
                     data["beam_center_x"].template get<float>()};
 
+    if (data.contains("omega_start") && data.contains("omega_increment")) {
+        _oscillation = {data["omega_start"].template get<float>(),
+                        data["omega_increment"].template get<float>()};
+    } else {
+        _oscillation = std::nullopt;
+    }
+
     // Read the mask
     std::vector<int32_t> raw_mask;
     raw_mask.resize(_image_shape[0] * _image_shape[1]);

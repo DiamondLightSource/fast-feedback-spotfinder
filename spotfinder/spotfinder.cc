@@ -490,6 +490,15 @@ int main(int argc, char **argv) {
       styled(detector.beam_center_y, fmt_cyan),
       styled(wavelength, fmt_cyan));
 
+    auto oscillation_opt = reader.get_oscillation();
+
+    if (oscillation_opt) {
+        auto [start, width] = oscillation_opt.value();
+        print("Oscillation:  Start: {:.2f}°  Width: {:.2f}°\n", start, width);
+    } else {
+        print("No oscillation information available\n");
+    }
+
 #pragma endregion Argument Parsing
 
     std::signal(SIGINT, stop_processing);

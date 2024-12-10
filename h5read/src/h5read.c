@@ -50,6 +50,8 @@ struct _h5read_handle {
     float pixel_size_x, pixel_size_y;
     float detector_distance;
     float beam_center_x, beam_center_y;
+    float oscillation_start;
+    float oscillation_width;
 };
 
 void h5read_free(h5read_handle *obj) {
@@ -416,6 +418,12 @@ float h5read_get_beam_center_x(h5read_handle *obj) {
 float h5read_get_beam_center_y(h5read_handle *obj) {
     return obj->beam_center_y;
 }
+float h5read_get_oscillation_start(h5read_handle *obj) {
+    return obj->oscillation_start;
+}
+float h5read_get_oscillation_width(h5read_handle *obj) {
+    return obj->oscillation_width;
+}
 
 #ifdef HAVE_HDF5
 void read_mask(h5read_handle *obj) {
@@ -666,6 +674,35 @@ void read_wavelength(h5read_handle *obj) {
         fprintf(stderr, "No wavelength data found...\n");
         obj->wavelength = -1;
     }
+}
+
+void read_oscillation_start_and_width(h5read_handle *obj) {
+    char omega_path[] = "/entry/sample/sample_omega/omega";
+
+    hid_t omega_dataset = H5Dopen(obj->master_file, omega_path, H5P_DEFAULT);
+    if (omega_dataset < 0) {
+        //We're allowed no omega scan e.g. grid
+        obj->oscillation_start = 0;
+        obj->oscillation_width = 0;
+        return;
+    }
+    hid_t datatype = H5Dget_type(omega_dataset);
+    hid_t omega_info = H5Dget_space(omega_dataset);
+    int size = H5Sget_simple_extent_npoints(omega_info);
+    if (size < 2) {
+        fprintf(stderr, "Error: While reading oscillation, size<2\n");
+        exit(1);
+    }
+    double *raw_omega = (double *)malloc(sizeof(double) * size);
+    void *buffer = (void *)raw_omega;
+    if (H5Dread(omega_dataset, datatype, H5S_ALL, H5S_ALL, H5P_DEFAULT, buffer) < 0) {
+        fprintf(stderr, "Error: While reading oscillation\n");
+        exit(1);
+    }
+    obj->oscillation_start = (float)raw_omega[0];
+    obj->oscillation_width = (float)raw_omega[1] - raw_omega[0];
+    free(raw_omega);
+    H5Dclose(omega_dataset);
 }
 
 void read_detector_metadata(h5read_handle *obj) {
@@ -923,6 +960,8 @@ h5read_handle *h5read_open(const char *master_filename) {
     read_wavelength(file);
 
     read_detector_metadata(file);
+
+    read_oscillation_start_and_width(file);
 
     read_mask(file);
 
