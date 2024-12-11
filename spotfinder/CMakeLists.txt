@@ -15,6 +15,7 @@ add_executable(spotfinder
     kernels/masking.cu
     kernels/thresholding.cu
     kernels/erosion.cu
+    connected_components/connected_components.cc
 )
 target_link_libraries(spotfinder
     PRIVATE
