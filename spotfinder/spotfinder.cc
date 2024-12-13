@@ -26,6 +26,7 @@
 
 #include "cbfread.hpp"
 #include "common.hpp"
+#include "connected_components/connected_components.hpp"
 #include "cuda_common.hpp"
 #include "h5read.h"
 #include "kernels/masking.cuh"
@@ -54,19 +55,9 @@ extern "C" void stop_processing(int sig) {
     }
 }
 
-/// Very basic comparison operator for convenience
-auto operator==(const int2 &left, const int2 &right) -> bool {
-    return left.x == right.x && left.y == right.y;
-}
-
 bool are_close(float a, float b, float tolerance) {
     return std::fabs(a - b) < tolerance;
 }
-
-struct Reflection {
-    int l, t, r, b;
-    int num_pixels = 0;
-};
 
 /// Copy the mask from a reader into a pitched GPU area
 template <typename T>
@@ -794,6 +785,8 @@ int main(int argc, char **argv) {
                 px_coords.clear();
                 px_kvals.clear();
 
+                std::vector<Reflection> boxes;
+
                 for (int y = 0, k = 0; y < height; ++y) {
                     for (int x = 0; x < width; ++x, ++k) {
                         if (host_results[k]) {
@@ -805,61 +798,8 @@ int main(int argc, char **argv) {
                     }
                 }
 
-                auto graph =
-                  boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS>{
-                    px_values.size()};
-
-                // Index for next pixel to search when looking for pixels
-                // below the current one. This will only ever increase, because
-                // we are guaranteed to always look for one after the last found
-                // pixel.
-                int idx_pixel_below = 1;
-
-                for (int i = 0; i < static_cast<int>(px_coords.size()) - 1; ++i) {
-                    auto coord = px_coords[i];
-                    auto coord_right = int2{coord.x + 1, coord.y};
-                    auto k = px_kvals[i];
-
-                    if (px_coords[i + 1] == coord_right) {
-                        // Since we generate strong pixels coordinates horizontally,
-                        // if there is a pixel to the right then it is guaranteed
-                        // to be the next one in the list. Connect these.
-                        boost::add_edge(i, i + 1, graph);
-                    }
-                    // Now, check the pixel directly below this one. We need to scan
-                    // to find it, because _if_ there is a matching strong pixel,
-                    // then we don't know how far ahead it is in the coordinates array
-                    if (coord.y < height - 1) {
-                        auto coord_below = int2{coord.x, coord.y + 1};
-                        auto k_below = k + width;
-                        // int idx = i + 1;
-                        while (idx_pixel_below < px_coords.size() - 1
-                               && px_kvals[idx_pixel_below] < k_below) {
-                            ++idx_pixel_below;
-                        }
-                        // Either we've got the pixel below, past that - or the
-                        // last pixel in the coordinate set.
-                        if (px_coords[idx_pixel_below] == coord_below) {
-                            boost::add_edge(i, idx_pixel_below, graph);
-                        }
-                    }
-                }
-                auto labels = std::vector<int>(boost::num_vertices(graph));
-                auto num_labels = boost::connected_components(graph, labels.data());
-
-                auto boxes = std::vector<Reflection>(num_labels, {width, height, 0, 0});
-
-                assert(labels.size() == px_coords.size());
-                for (int i = 0; i < labels.size(); ++i) {
-                    auto label = labels[i];
-                    auto coord = px_coords[i];
-                    Reflection &box = boxes[label];
-                    box.l = std::min(box.l, coord.x);
-                    box.r = std::max(box.r, coord.x);
-                    box.t = std::min(box.t, coord.y);
-                    box.b = std::max(box.b, coord.y);
-                    box.num_pixels += 1;
-                }
+                connected_components_2d(
+                  px_coords, px_kvals, px_values, width, height, min_spot_size, &boxes);
 
                 if (min_spot_size > 0) {
                     std::vector<Reflection> filtered_boxes;
@@ -869,20 +809,12 @@ int main(int argc, char **argv) {
                             num_strong_pixels_filtered += box.num_pixels;
                         }
                     }
+                    // Overwrite boxes with filtered boxes
                     boxes = std::move(filtered_boxes);
-
-                    // Print out shoebox details for debugging
-                    // for (auto &box : boxes) {
-                    //     // Print the shoebox details
-                    //     print("Shoebox: ({:3d}, {:3d}) - ({:3d}, {:3d})\n",
-                    //           box.l,
-                    //           box.t,
-                    //           box.r,
-                    //           box.b);
-                    // }
                 } else {
                     num_strong_pixels_filtered = num_strong_pixels;
                 }
+
                 end.record(stream);
                 // Now, wait for stream to finish
                 CUDA_CHECK(cudaStreamSynchronize(stream));

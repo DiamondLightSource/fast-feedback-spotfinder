@@ -15,6 +15,11 @@
 #define VALID_PIXEL 1
 #define MASKED_PIXEL 0
 
+/// Very basic comparison operator for convenience
+inline auto operator==(const int2 &left, const int2 &right) -> bool {
+    return left.x == right.x && left.y == right.y;
+}
+
 template <typename T1, typename... TS>
 auto with_formatting(const std::string &code, const T1 &first, TS... args)
   -> std::string {
