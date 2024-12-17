@@ -613,11 +613,6 @@ int main(int argc, char **argv) {
             auto raw_chunk_buffer =
               std::vector<uint8_t>(width * height * sizeof(pixel_t));
 
-            // Allocate buffers for DIALS-style extraction
-            auto px_coords = std::vector<int2>();
-            auto px_values = std::vector<pixel_t>();
-            auto px_kvals = std::vector<size_t>();
-
             // Let all threads do setup tasks before reading starts
             cpu_sync.arrive_and_wait();
             CudaEvent start, copy, post, postcopy, end;
@@ -777,29 +772,17 @@ int main(int argc, char **argv) {
 #pragma endregion Spotfinding
 
 #pragma region Connected Components
-                // Manually reproduce what the DIALS connected components does
-                // Start with the behaviour of the PixelList class:
-                size_t num_strong_pixels = 0;
-                size_t num_strong_pixels_filtered = 0;
-                px_values.clear();
-                px_coords.clear();
-                px_kvals.clear();
+                ConnectedComponents connected_components(host_results.get(),
+                                                         host_image.get(),
+                                                         width,
+                                                         height,
+                                                         image_num,
+                                                         min_spot_size);
 
-                std::vector<Reflection> boxes;
-
-                for (int y = 0, k = 0; y < height; ++y) {
-                    for (int x = 0; x < width; ++x, ++k) {
-                        if (host_results[k]) {
-                            px_coords.emplace_back(x, y);
-                            px_values.push_back(host_image[k]);
-                            px_kvals.push_back(k);
-                            ++num_strong_pixels;
-                        }
-                    }
-                }
-
-                connected_components_2d(
-                  px_coords, px_kvals, px_values, width, height, min_spot_size, &boxes);
+                auto boxes = connected_components.get_boxes();
+                size_t num_strong_pixels = connected_components.num_strong_pixels;
+                size_t num_strong_pixels_filtered =
+                  connected_components.num_strong_pixels_filtered;
 
                 if (min_spot_size > 0) {
                     std::vector<Reflection> filtered_boxes;
