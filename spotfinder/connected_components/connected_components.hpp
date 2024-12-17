@@ -16,8 +16,18 @@ struct Reflection {
     int num_pixels = 0;
 };
 
+struct Signal {
+    int2 coord;           // Coordinates of the pixel (x, y)
+    pixel_t intensity;    // Pixel intensity
+    size_t linear_index;  // Linear index of the pixel
+};
+
 /**
  * @brief Class to find connected components in a 2D image
+ * 
+ * The `ConnectedComponents` class identifies connected components (clusters) in a
+ * binary 2D image. It stores signal pixels and their corresponding graph structure
+ * to determine connected regions.
  * 
  * @param result_image the result image
  * @param original_image the original image
@@ -32,18 +42,19 @@ struct Reflection {
  */
 class ConnectedComponents {
   public:
-    uint z_index;
-    std::vector<int2> px_coords;
-    std::vector<size_t> px_kvals;
-    std::vector<pixel_t> px_values;
-    uint num_strong_pixels;           // Number of strong pixels
-    uint num_strong_pixels_filtered;  // Number of strong pixels after filtering
-
     ConnectedComponents(const uint8_t *result_image,
                         const pixel_t *original_image,
                         const ushort width,
                         const ushort height,
                         const uint32_t min_spot_size);
+
+    uint get_num_strong_pixels() const {
+        return num_strong_pixels;
+    }
+
+    uint get_num_strong_pixels_filtered() const {
+        return num_strong_pixels_filtered;
+    }
 
     std::vector<Reflection> get_boxes() const {
         return boxes;
@@ -53,6 +64,7 @@ class ConnectedComponents {
     const ushort width;               // Width of the image
     const ushort height;              // Height of the image
     const uint32_t min_spot_size;     // Minimum spot size
+    uint z_index;                     // Z-index of the image
     uint num_strong_pixels;           // Number of strong pixels
     uint num_strong_pixels_filtered;  // Number of strong pixels after filtering
     std::vector<Reflection> boxes;    // Bounding boxes

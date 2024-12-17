@@ -23,19 +23,20 @@ ConnectedComponents::ConnectedComponents(const uint8_t *result_image,
       num_strong_pixels_filtered(0) {
     // Construct signals
     size_t k = 0;  // Linear index for the image
-    for (uint y = 0; y < height; ++y) {
-        for (uint x = 0; x < width; ++x, ++k) {
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x, ++k) {
             if (result_image[k]) {  // Store only non-zero (signal) pixels
-                px_coords.emplace_back(x, y);
-                px_values.push_back(original_image[k]);
-                px_kvals.push_back(k);
+                int2 coord{x, y};
+                signals[k] = {coord, original_image[k], k};
                 ++num_strong_pixels;
             }
         }
     }
 
-    // Find connected components
+    // Build graph
     auto graph = build_graph();
+
+    // Find connected components
     auto labels = std::vector<int>(boost::num_vertices(graph));
     auto num_labels = boost::connected_components(graph, labels.data());
 
@@ -50,43 +51,34 @@ ConnectedComponents::ConnectedComponents(const uint8_t *result_image,
  * pixels that are adjacent to each other.
  */
 boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS>
-ConnectedComponents::build_graph() const {
-    // Build graph
+ConnectedComponents::build_graph() {
+    // Graph to store connected components
     auto graph = boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS>{};
 
-    // Index for next pixel to search when looking for pixels
-    // below the current one. This will only ever increase, because
-    // we are guaranteed to always look for one after the last found
-    // pixel.
-    int idx_pixel_below = 1;
+    // Map linear_index to vertex ID for graph consistency
+    size_t vertex_id = 0;
 
-    for (int i = 0; i < static_cast<int>(px_coords.size()) - 1; ++i) {
-        auto coord = px_coords[i];
-        auto coord_right = int2{coord.x + 1, coord.y};
-        auto k = px_kvals[i];
+    // First, add vertices to the graph
+    for (const auto &[linear_index, signal] : signals) {
+        vertex_map[linear_index] = vertex_id++;
+        boost::add_vertex(graph);
+    }
 
-        if (px_coords[i + 1] == coord_right) {
-            // Since we generate strong pixels coordinates horizontally,
-            // if there is a pixel to the right then it is guaranteed
-            // to be the next one in the list. Connect these.
-            boost::add_edge(i, i + 1, graph);
+    // Add edges by checking neighbors
+    for (const auto &[linear_index, signal] : signals) {
+        size_t right_linear_index = linear_index + 1;      // Pixel to the right
+        size_t below_linear_index = linear_index + width;  // Pixel below
+
+        // Check and connect to the pixel on the right
+        if (signals.find(right_linear_index) != signals.end()) {
+            boost::add_edge(
+              vertex_map[linear_index], vertex_map[right_linear_index], graph);
         }
-        // Now, check the pixel directly below this one. We need to scan
-        // to find it, because _if_ there is a matching strong pixel,
-        // then we don't know how far ahead it is in the coordinates array
-        if (coord.y < height - 1) {
-            auto coord_below = int2{coord.x, coord.y + 1};
-            auto k_below = k + width;
-            // int idx = i + 1;
-            while (idx_pixel_below < px_coords.size() - 1
-                   && px_kvals[idx_pixel_below] < k_below) {
-                ++idx_pixel_below;
-            }
-            // Either we've got the pixel below, past that - or the
-            // last pixel in the coordinate set.
-            if (px_coords[idx_pixel_below] == coord_below) {
-                boost::add_edge(i, idx_pixel_below, graph);
-            }
+
+        // Check and connect to the pixel below
+        if (signals.find(below_linear_index) != signals.end()) {
+            boost::add_edge(
+              vertex_map[linear_index], vertex_map[below_linear_index], graph);
         }
     }
 
@@ -103,15 +95,37 @@ void ConnectedComponents::generate_boxes(std::vector<int> labels, int num_labels
     // Initialize bounding boxes
     boxes = std::vector<Reflection>(num_labels, {width, height, 0, 0});
 
-    // Update bounding boxes
-    for (int i = 0; i < labels.size(); ++i) {
-        auto label = labels[i];
-        auto coord = px_coords[i];
-        Reflection &box = boxes[label];
-        box.l = std::min(box.l, coord.x);
-        box.r = std::max(box.r, coord.x);
-        box.t = std::min(box.t, coord.y);
-        box.b = std::max(box.b, coord.y);
-        box.num_pixels += 1;
+    // Iterate over the signals and update the bounding boxes
+    for (const auto &[linear_index, signal] : signals) {
+        // Retrieve the vertex index for this linear_index (linear_index -> vertex_id in build_graph)
+        auto vertex_it = vertex_map.find(linear_index);
+        if (vertex_it == vertex_map.end()) {
+            throw std::runtime_error("Vertex not found in vertex_map");
+        }
+
+        size_t vertex_id = vertex_it->second;  // Vertex ID in the graph
+        int label = labels[vertex_id];         // Label assigned to this vertex
+
+        auto &box = boxes[label];
+        box.l = std::min(box.l, signal.coord.x);
+        box.r = std::max(box.r, signal.coord.x);
+        box.t = std::min(box.t, signal.coord.y);
+        box.b = std::max(box.b, signal.coord.y);
+        ++box.num_pixels;  // Increment the number of pixels in the box
+    }
+
+    // Filter boxes based on the minimum spot size
+    if (min_spot_size > 0) {
+        std::vector<Reflection> filtered_boxes;
+        for (auto &box : boxes) {
+            if (box.num_pixels >= min_spot_size) {
+                filtered_boxes.emplace_back(box);
+                num_strong_pixels_filtered += box.num_pixels;
+            }
+        }
+        // Overwrite boxes with filtered boxes
+        boxes = std::move(filtered_boxes);
+    } else {
+        num_strong_pixels_filtered = num_strong_pixels;
     }
 }

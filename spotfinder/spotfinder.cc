@@ -772,31 +772,18 @@ int main(int argc, char **argv) {
 #pragma endregion Spotfinding
 
 #pragma region Connected Components
-                ConnectedComponents connected_components(host_results.get(),
-                                                         host_image.get(),
-                                                         width,
-                                                         height,
-                                                         image_num,
-                                                         min_spot_size);
+                ConnectedComponents connected_components_2d(host_results.get(),
+                                                            host_image.get(),
+                                                            width,
+                                                            height,
+                                                            image_num,
+                                                            min_spot_size);
 
-                auto boxes = connected_components.get_boxes();
-                size_t num_strong_pixels = connected_components.num_strong_pixels;
+                auto boxes = connected_components_2d.get_boxes();
+                size_t num_strong_pixels =
+                  connected_components_2d.get_num_strong_pixels();
                 size_t num_strong_pixels_filtered =
-                  connected_components.num_strong_pixels_filtered;
-
-                if (min_spot_size > 0) {
-                    std::vector<Reflection> filtered_boxes;
-                    for (auto &box : boxes) {
-                        if (box.num_pixels >= min_spot_size) {
-                            filtered_boxes.emplace_back(box);
-                            num_strong_pixels_filtered += box.num_pixels;
-                        }
-                    }
-                    // Overwrite boxes with filtered boxes
-                    boxes = std::move(filtered_boxes);
-                } else {
-                    num_strong_pixels_filtered = num_strong_pixels;
-                }
+                  connected_components_2d.get_num_strong_pixels_filtered();
 
                 end.record(stream);
                 // Now, wait for stream to finish
