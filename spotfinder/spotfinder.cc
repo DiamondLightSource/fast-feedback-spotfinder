@@ -595,6 +595,19 @@ int main(int argc, char **argv) {
         pipeHandler = std::make_unique<PipeHandler>(pipe_fd);
     }
 
+    // Create a unique pointer to store the image slices if this is a rotation dataset
+    std::unique_ptr<std::unordered_map<int, std::unique_ptr<ConnectedComponents>>>
+      rotation_slices = nullptr;
+    std::mutex rotation_slices_mutex;  // Mutex to protect the rotation slices map
+    if (oscillation_width > 0) {
+        // If oscillation information is available then this is a rotation dataset
+        print("Dataset type: {}\n", styled("Rotation set", fmt_magenta));
+        rotation_slices = std::make_unique<
+          std::unordered_map<int, std::unique_ptr<ConnectedComponents>>>();
+    } else {
+        print("Dataset type: {}\n", styled("Still set", fmt_magenta));
+    }
+
     // Spawn the reader threads
     std::vector<std::jthread> threads;
     for (int thread_id = 0; thread_id < num_cpu_threads; ++thread_id) {
@@ -774,18 +787,24 @@ int main(int argc, char **argv) {
 #pragma endregion Spotfinding
 
 #pragma region Connected Components
-                ConnectedComponents connected_components_2d(host_results.get(),
-                                                            host_image.get(),
-                                                            width,
-                                                            height,
-                                                            image_num,
-                                                            min_spot_size);
+                std::unique_ptr<ConnectedComponents> connected_components_2d =
+                  std::make_unique<ConnectedComponents>(
+                    host_results.get(), host_image.get(), width, height, min_spot_size);
 
-                auto boxes = connected_components_2d.get_boxes();
+                auto boxes = connected_components_2d->get_boxes();
                 size_t num_strong_pixels =
-                  connected_components_2d.get_num_strong_pixels();
+                  connected_components_2d->get_num_strong_pixels();
                 size_t num_strong_pixels_filtered =
-                  connected_components_2d.get_num_strong_pixels_filtered();
+                  connected_components_2d->get_num_strong_pixels_filtered();
+
+                // If this is a rotation dataset, store the connected component slice
+                if (rotation_slices) {
+                    // Lock the mutex to protect the map
+                    std::lock_guard<std::mutex> lock(rotation_slices_mutex);
+                    // Store the connected components slice in the map
+                    (*rotation_slices)[offset_image_num] =
+                      std::move(connected_components_2d);
+                }
 
                 end.record(stream);
                 // Now, wait for stream to finish
@@ -946,6 +965,15 @@ int main(int argc, char **argv) {
     // For now, just wait on all threads to finish
     for (auto &thread : threads) {
         thread.join();
+    }
+
+    // Print total size of connected components for rotation datasets
+    if (rotation_slices) {
+        size_t total_size = 0;
+        for (auto &[image_num, connected_components] : *rotation_slices) {
+            total_size += connected_components->get_boxes().size();
+        }
+        print("Total size of connected components: {}\n", total_size);
     }
 
     float total_time =
