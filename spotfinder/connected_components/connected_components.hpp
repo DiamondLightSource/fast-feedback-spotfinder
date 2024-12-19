@@ -61,10 +61,6 @@ class ConnectedComponents {
     }
 
   private:
-    const ushort width;               // Width of the image
-    const ushort height;              // Height of the image
-    const uint32_t min_spot_size;     // Minimum spot size
-    uint z_index;                     // Z-index of the image
     uint num_strong_pixels;           // Number of strong pixels
     uint num_strong_pixels_filtered;  // Number of strong pixels after filtering
     std::vector<Reflection> boxes;    // Bounding boxes
@@ -80,14 +76,20 @@ class ConnectedComponents {
      * This function uses the `signals` map to find neighboring pixels efficiently.
      * The `vertex_map` is used to map linear indices (from `signals`) to graph vertex IDs.
      */
-    boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS> build_graph();
+    boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS> build_graph(
+      const ushort width,
+      const ushort height);
     /**
      * @brief Generates bounding boxes for connected components using the graph labels.
      * 
      * The `labels` vector maps each graph vertex to its connected component ID.
      * The `vertex_map` is used to relate graph vertex IDs back to the original pixels.
      */
-    void generate_boxes(std::vector<int> labels, int num_labels);
+    void generate_boxes(std::vector<int> labels,
+                        int num_labels,
+                        const ushort width,
+                        const ushort height,
+                        const uint32_t min_spot_size);
 };
 
 #endif  // CONNECTED_COMPONENTS_HPP
