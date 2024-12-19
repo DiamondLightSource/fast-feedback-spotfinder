@@ -56,8 +56,22 @@ class ConnectedComponents {
         return num_strong_pixels_filtered;
     }
 
-    std::vector<Reflection> get_boxes() const {
+    /*
+     * By returning const references, we prevent the caller from 
+     * modifying the internal maps, but allow them to read the data
+     * without a costly copy.
+    */
+
+    const std::vector<Reflection> &get_boxes() const {
         return boxes;
+    }
+
+    const std::unordered_map<size_t, Signal> &get_signals() const {
+        return signals;
+    }
+
+    const auto &get_graph() const {
+        return graph;
     }
 
   private:
@@ -68,6 +82,7 @@ class ConnectedComponents {
       signals;  // Maps pixel linear index -> Signal (used to store signal pixels)
     std::unordered_map<size_t, size_t>
       vertex_map;  // Maps linear_index -> graph vertex ID
+    boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS> graph;
 
     /**
      * @brief Builds a graph where vertices represent signal pixels and edges represent 
@@ -76,18 +91,14 @@ class ConnectedComponents {
      * This function uses the `signals` map to find neighboring pixels efficiently.
      * The `vertex_map` is used to map linear indices (from `signals`) to graph vertex IDs.
      */
-    boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS> build_graph(
-      const ushort width,
-      const ushort height);
+    void build_graph(const ushort width, const ushort height);
     /**
      * @brief Generates bounding boxes for connected components using the graph labels.
      * 
      * The `labels` vector maps each graph vertex to its connected component ID.
      * The `vertex_map` is used to relate graph vertex IDs back to the original pixels.
      */
-    void generate_boxes(std::vector<int> labels,
-                        int num_labels,
-                        const ushort width,
+    void generate_boxes(const ushort width,
                         const ushort height,
                         const uint32_t min_spot_size);
 };
