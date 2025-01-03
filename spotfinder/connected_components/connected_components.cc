@@ -120,3 +120,139 @@ void ConnectedComponents::generate_boxes(const ushort width,
         num_strong_pixels_filtered = num_strong_pixels;
     }
 }
+
+std::vector<Reflection3D> ConnectedComponents::find_3d_components(
+  const std::vector<std::unique_ptr<ConnectedComponents>> &slices,
+  const ushort width,
+  const ushort height) {
+    /*
+     * Initialize global containers for the 3D connected components
+     */
+    printf("Initializing 3D connected components...\n");
+    // Graph for the 3D connected components
+    boost::adjacency_list<boost::vecS, boost::vecS, boost::undirectedS> graph_3d;
+    // List to store each slice's mapping of linear_index -> global_vertex_id
+    std::vector<std::unordered_map<size_t, size_t>> local_to_global_vertex_maps;
+    // Global vertex ID counter starts at 0 and increments for each new vertex
+    size_t global_vertex_id = 0;
+
+    /*
+     * Start building the 3D graph. First we copy the precomputed vertices and edges
+     * from each slice's graph into the global 3D graph.
+     */
+    printf("Building 3D graph...\n");
+    for (const auto &slice : slices) {
+        // Get the slice's graph and vertex map
+        const auto &graph = slice->get_graph();
+        const auto &signals = slice->get_signals();
+
+        // 2D linear_index -> global_vertex_id map for this slice
+        std::unordered_map<size_t, size_t> local_to_global;
+
+        // Add each vertex from the slice's graph to the global graph
+        for (const auto &[linear_index, signal] : signals) {
+            // Add the vertex to the global graph
+            local_to_global[linear_index] = global_vertex_id++;
+            boost::add_vertex(graph_3d);
+        }
+
+        // Move the local_to_global map to the global list
+        local_to_global_vertex_maps.push_back(std::move(local_to_global));
+    }
+
+    /*
+     * We then copy the pre-computed edges from each slice's graph to the 3D graph.
+     */
+    printf("Copying edges to 3D graph...\n");
+    // Iterate over each slice and copy the edges to the 3D graph
+    for (int i = 0; i < slices.size(); ++i) {
+        const auto &working_graph = slices[i]->get_graph();  // Get the slice's graph
+        const auto &working_vertex_map =
+          slices[i]->get_vertex_map();  // Get the slice's vertex map
+
+        std::unordered_map<size_t, size_t> reverse_vertex_map;
+        for (const auto &[linear_index, vertex_id] : working_vertex_map) {
+            reverse_vertex_map[vertex_id] = linear_index;
+        }
+
+        printf("Copying edges from slice %d...\n", i);
+        // Iterate over the edges in the slice's graph
+        for (const auto &edge :
+             boost::make_iterator_range(boost::edges(working_graph))) {
+            // Get the source and target vertices for the edge
+            auto source_vertex = boost::source(edge, working_graph);
+            auto target_vertex = boost::target(edge, working_graph);
+
+            // Retrieve the original linear indices
+            size_t source_linear_index = reverse_vertex_map[source_vertex];
+            size_t target_linear_index = reverse_vertex_map[target_vertex];
+
+            // Get the global vertex IDs
+            size_t source_global_id =
+              local_to_global_vertex_maps[i][source_linear_index];
+            size_t target_global_id =
+              local_to_global_vertex_maps[i][target_linear_index];
+
+            // Add the edge to the 3D graph
+            boost::add_edge(source_global_id, target_global_id, graph_3d);
+        }
+    }
+
+    /*
+     * Next, we add inter-slice connectivity to the 3D graph. This is done by
+     * iterating over the local_to_global_vertex_maps and connecting vertices
+     * that correspond to the same pixel in adjacent slices.
+     */
+    printf("Adding inter-slice connectivity...\n");
+    // Loop through all slices except the last one
+    for (size_t i = 0; i < slices.size() - 1; ++i) {
+        const auto &current_vertex_map =
+          local_to_global_vertex_maps[i];  // Current slice
+        const auto &next_vertex_map = local_to_global_vertex_maps[i + 1];  // Next slice
+
+        // Iterate over the vertices in the current slice
+        for (const auto &[current_linear_index, current_global_id] :
+             current_vertex_map) {
+            // Check if the corresponding vertex exists in the next slice
+            auto iterated_vertex = next_vertex_map.find(current_linear_index);
+            // If it exists, connect the vertices in the 3D graph
+            if (iterated_vertex != next_vertex_map.end()) {
+                // Connect the vertices in the 3D graph
+                size_t next_global_id =
+                  iterated_vertex->second;  // Get the global id from the vertex map
+                boost::add_edge(current_global_id, next_global_id, graph_3d);
+            }
+        }
+    }
+
+    /*
+     * Now that we have constructed the 3D graph, we can perform connected components
+     * analysis to find the 3D connected components.
+     */
+    printf("Performing 3D connected components analysis...\n");
+    std::vector<int> labels(
+      boost::num_vertices(graph_3d));  // Label vector for connected components
+    uint num_labels = boost::connected_components(
+      graph_3d, labels.data());  // Find connected components
+
+    /*
+     * Group the 3D connected components by their labels and compute the bounding boxes
+     * and weighted centers of mass for each component. We do this by creating a map
+     * of labels to vectors of global vertex IDs, and then iterating over each map
+     * entry to compute the bounding box and center of mass.
+     */
+    printf("Grouping 3D connected components...\n");
+    std::vector<Reflection3D> reflections_3d(
+      num_labels);  // List to store 3D reflections
+
+    std::unordered_map<int, std::vector<size_t>>
+      label_to_vertices;  // Map of labels -> global vertices for each label
+    for (int i = 0; i < labels.size(); ++i) {
+        label_to_vertices[labels[i]].push_back(
+          i);  // Add the vertex to the label's list
+    }
+
+    // TODO: Implement bounding box and center of mass computation
+
+    return reflections_3d;
+}

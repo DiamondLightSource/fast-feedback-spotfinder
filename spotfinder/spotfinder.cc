@@ -967,13 +967,39 @@ int main(int argc, char **argv) {
         thread.join();
     }
 
-    // Print total size of connected components for rotation datasets
+    // After all threads have finished processing slices
     if (rotation_slices) {
-        size_t total_size = 0;
+        print("Processing 3D connected components...\n");
+
+        // Step 1: Convert rotation_slices map to a vector
+        std::vector<std::unique_ptr<ConnectedComponents>> slices;
         for (auto &[image_num, connected_components] : *rotation_slices) {
-            total_size += connected_components->get_boxes().size();
+            slices.push_back(std::move(connected_components));
         }
-        print("Total size of connected components: {}\n", total_size);
+
+        // Step 2: Call find_3d_components
+        auto reflections_3d =
+          ConnectedComponents::find_3d_components(slices, width, height);
+
+        // Step 3: Output the 3D reflections
+        print("Found {} 3D connected components.\n", reflections_3d.size());
+        for (const auto &reflection : reflections_3d) {
+            printf(
+              "3D Reflection: x=[%d, %d], y=[%d, %d], z=[%d, %d], pixels=%d, "
+              "center_of_mass=(%.2f, %.2f, %.2f)\n",
+              reflection.xmin,
+              reflection.xmax,
+              reflection.ymin,
+              reflection.ymax,
+              reflection.zmin,
+              reflection.zmax,
+              reflection.num_pixels,
+              reflection.cx,
+              reflection.cy,
+              reflection.cz);
+        }
+
+        print("3D connected components processing complete.\n");
     }
 
     float total_time =

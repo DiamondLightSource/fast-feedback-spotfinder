@@ -16,6 +16,13 @@ struct Reflection {
     int num_pixels = 0;
 };
 
+struct Reflection3D {
+    int xmin, ymin, zmin;
+    int xmax, ymax, zmax;
+    int num_pixels = 0;
+    double cx = 0.0, cy = 0.0, cz = 0.0;  // Center of mass
+};
+
 struct Signal {
     int2 coord;           // Coordinates of the pixel (x, y)
     pixel_t intensity;    // Pixel intensity
@@ -73,6 +80,23 @@ class ConnectedComponents {
     const auto &get_graph() const {
         return graph;
     }
+
+    /**
+   * @brief Finds 3D connected components using a list of ConnectedComponents objects.
+   *
+   * This function combines the precomputed 2D graphs and signals stored in
+   * ConnectedComponents objects into a single 3D graph. It adds inter-slice
+   * (z-axis) connectivity and computes connected components across slices.
+   *
+   * @param slices A list of ConnectedComponents objects, each corresponding to a slice.
+   * @param width The width of the image.
+   * @param height The height of the image.
+   * @return A list of 3D reflections, each with bounding box and weighted center of mass.
+   */
+    static std::vector<Reflection3D> find_3d_components(
+      const std::vector<std::unique_ptr<ConnectedComponents>> &slices,
+      const ushort width,
+      const ushort height);
 
   private:
     uint num_strong_pixels;           // Number of strong pixels
