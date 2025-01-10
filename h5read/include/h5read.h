@@ -169,7 +169,7 @@ class Reader {
       const = 0;  ///< Beam center (y, x), in pixels
     virtual std::optional<float> get_detector_distance()
       const = 0;  ///< Distance to detector, in meters.
-    virtual std::optional<std::array<float, 2>> get_oscillation()
+    virtual std::array<float, 2> get_oscillation()
       const = 0;  ///< Oscillation (start, width), in degrees
 };
 
@@ -265,15 +265,11 @@ class H5Read : public Reader {
         }
     }
     /// Get the oscillation range, in (start, width) degrees
-    virtual std::optional<std::array<float, 2>> get_oscillation() const {
+    virtual std::array<float, 2> get_oscillation() const {
         float start = h5read_get_oscillation_start(_handle.get());
         float width = h5read_get_oscillation_width(_handle.get());
 
-        if (start == 0 && width == 0) {
-            return std::nullopt;
-        } else {
-            return {{start, width}};
-        }
+        return {{start, width}};
     }
 
     virtual std::optional<std::array<float, 2>> get_pixel_size() const {

@@ -51,7 +51,7 @@ SHMRead::SHMRead(const std::string &path) : _base_path(path) {
         _oscillation = {data["omega_start"].template get<float>(),
                         data["omega_increment"].template get<float>()};
     } else {
-        _oscillation = std::nullopt;
+        _oscillation = {0, 0};
     }
 
     // Read the mask

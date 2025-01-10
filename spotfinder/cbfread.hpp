@@ -155,8 +155,8 @@ class CBFRead : public Reader {
     virtual std::optional<float> get_detector_distance() const {
         return std::nullopt;
     };
-    virtual std::optional<std::array<float, 2>> get_oscillation() const {
-        return std::nullopt;
+    virtual std::array<float, 2> get_oscillation() const {
+        return {0, 0};
     };
 };
 

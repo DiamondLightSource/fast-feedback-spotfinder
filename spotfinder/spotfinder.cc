@@ -490,13 +490,16 @@ int main(int argc, char **argv) {
       styled(detector.beam_center_y, fmt_cyan),
       styled(wavelength, fmt_cyan));
 
-    auto oscillation_opt = reader.get_oscillation();
+    auto [oscillation_start, oscillation_width] = reader.get_oscillation();
 
-    if (oscillation_opt) {
-        auto [start, width] = oscillation_opt.value();
-        print("Oscillation:  Start: {:.2f}°  Width: {:.2f}°\n", start, width);
-    } else {
-        print("No oscillation information available\n");
+    /*
+     * If the oscillation width is greater than 0, then this is a
+     * rotation dataset. Otherwise, it is a still dataset.
+    */
+    if (oscillation_width > 0) {
+        print("Oscillation:  Start: {:.2f}°  Width: {:.2f}°\n",
+              styled(oscillation_start, fmt_cyan),
+              styled(oscillation_width, fmt_cyan));
     }
 
 #pragma endregion Argument Parsing
