@@ -81,6 +81,10 @@ class ConnectedComponents {
         return graph;
     }
 
+    const auto &get_vertex_map() const {
+        return vertex_map;
+    }
+
     /**
    * @brief Finds 3D connected components using a list of ConnectedComponents objects.
    *
