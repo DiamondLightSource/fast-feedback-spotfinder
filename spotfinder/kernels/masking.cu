@@ -17,6 +17,7 @@
  *       assumption that the detector is perpendicular to the beam.
  */
 
+#include "device_common.cuh"
 #include "masking.cuh"
 
 #define VALID_PIXEL 1
@@ -95,7 +96,7 @@ __device__ float get_resolution(float wavelength,
  * @param dmin The minimum resolution (d-spacing) threshold.
  * @param dmax The maximum resolution (d-spacing) threshold.
  */
-__global__ void apply_resolution_mask(uint8_t *mask,
+__global__ void apply_resolution_mask(uint8_t *mask_ptr,
                                       size_t mask_pitch,
                                       int width,
                                       int height,
@@ -112,7 +113,10 @@ __global__ void apply_resolution_mask(uint8_t *mask,
 
     if (x > width || y > height) return;  // Out of bounds
 
-    if (mask[y * mask_pitch + x] == MASKED_PIXEL) {  // Check if the pixel is masked
+    // Create pitched array for data access
+    PitchedArray2D<uint8_t> mask(mask_ptr, &mask_pitch);
+
+    if (mask(x, y) == MASKED_PIXEL) {  // Check if the pixel is masked
         /*
         * If the pixel is already masked, we don't need to calculate the
         * resolution for it, so we can just leave it masked
@@ -127,18 +131,18 @@ __global__ void apply_resolution_mask(uint8_t *mask,
 
     // Check if dmin is set and if the resolution is below it
     if (dmin > 0 && resolution < dmin) {
-        mask[y * mask_pitch + x] = MASKED_PIXEL;
+        mask(x, y) = MASKED_PIXEL;
         return;
     }
 
     // Check if dmax is set and if the resolution is above it
     if (dmax > 0 && resolution > dmax) {
-        mask[y * mask_pitch + x] = MASKED_PIXEL;
+        mask(x, y) = MASKED_PIXEL;
         return;
     }
 
     // If the pixel is not masked and the resolution is within the limits, set the resolution mask to 1
-    mask[y * mask_pitch + x] = VALID_PIXEL;
+    mask(x, y) = VALID_PIXEL;
     // ⛔🧊
 }
 #pragma endregion Mask Kernel

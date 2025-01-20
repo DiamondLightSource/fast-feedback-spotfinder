@@ -380,8 +380,8 @@ int main(int argc, char **argv) {
     uint32_t num_images = parser.is_used("images") ? parser.get<uint32_t>("images")
                                                    : reader.get_number_of_images();
 
-    int height = reader.image_shape()[0];
-    int width = reader.image_shape()[1];
+    ushort height = reader.image_shape()[0];
+    ushort width = reader.image_shape()[1];
     auto trusted_px_max = reader.get_trusted_range()[1];
 
     detector_geometry detector;
@@ -734,7 +734,6 @@ int main(int argc, char **argv) {
                 case DispersionAlgorithm::Algorithm::DISPERSION:
                     call_do_spotfinding_dispersion(blocks_dims,
                                                    gpu_thread_block_size,
-                                                   0,
                                                    stream,
                                                    device_image,
                                                    mask,
@@ -746,7 +745,6 @@ int main(int argc, char **argv) {
                 case DispersionAlgorithm::Algorithm::DISPERSION_EXTENDED:
                     call_do_spotfinding_extended(blocks_dims,
                                                  gpu_thread_block_size,
-                                                 0,
                                                  stream,
                                                  device_image,
                                                  mask,
