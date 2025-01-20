@@ -12,7 +12,8 @@ cd _debug_output
 # Open file descriptor 3 for writing to output_file.txt
 exec 3> output_file.txt
 
-../bin/spotfinder /dls/i03/data/2024/mx39148-12/auto/LC_KAT6A/2024-L049_E2a_1/2024-L049_E2a_1_1_master.h5 \
+# ./bin/spotfinder /dls/i03/data/2024/cm37235-2/TestInsulin/ins_14/ins_14_49_45_master.h5 --min-spot-size 3 --dmin 4 --algorithm "dispersion" --threads 1 --images 5
+../bin/spotfinder /dls/i03/data/2024/cm37235-2/TestInsulin/ins_14/ins_14_49_45_master.h5 \
   --min-spot-size 3 \
   --pipe_fd 3 \
   --dmin 4 \
